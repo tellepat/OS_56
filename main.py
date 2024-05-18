@@ -16,6 +16,7 @@ class SmokerProblem:
 
         self.agent_lock = Lock()
         self.smoker_lock = [Lock(), Lock(), Lock()]
+        self.exit_flag = False
 
         for lock in self.smoker_lock:
             lock.acquire()
@@ -29,7 +30,7 @@ class SmokerProblem:
         self.start_button = tk.Button(self.root, text="Начать симуляцию", command=self.start_simulation)
         self.start_button.pack(pady=10)
 
-        self.quit_button = tk.Button(self.root, text="Выход", command=self.root.quit)
+        self.quit_button = tk.Button(self.root, text="Выход", command=self.stop_simulation)
         self.quit_button.pack(pady=10)
 
         self.agent_speed_label = tk.Label(self.root, text="Скорость агента (сек)")
@@ -67,17 +68,23 @@ class SmokerProblem:
 
     def start_simulation(self):
         self.start_button.config(state=tk.DISABLED)
-        self.agent_thread = Thread(target=self.agent)
+        self.agent_thread = Thread(target=self.agent, daemon=True)
         self.agent_thread.start()
         self.smoker_threads = []
         for i in range(3):
-            thread = Thread(target=self.smoker, args=(i,))
+            thread = Thread(target=self.smoker, args=(i,), daemon=True)
             thread.start()
             self.smoker_threads.append(thread)
 
+    def stop_simulation(self):
+        self.exit_flag = True
+        self.root.after(100, self.root.quit)  # Закрытие root через 100 миллисекунд
+
     def agent(self):
-        while True:
+        while not self.exit_flag:
             self.agent_lock.acquire()
+            if self.exit_flag:
+                break
             # Агент выкладывает два случайных ингредиента на стол
             self.table_ingredients = random.sample(self.ingredients, 2)
 
@@ -94,9 +101,10 @@ class SmokerProblem:
             time.sleep(self.agent_speed_slider.get())  # Время ожидания перед следующей выкладкой ингредиентов
 
     def smoker(self, index):
-        while True:
+        while not self.exit_flag:
             self.smoker_lock[index].acquire()
-
+            if self.exit_flag:
+                break
             if len(self.table_ingredients) == 2:
                 missing_ingredient = list(set(self.ingredients) - set(self.table_ingredients))[0]
 
