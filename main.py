@@ -60,6 +60,9 @@ class SmokerProblem:
             speed_slider.pack(side=tk.RIGHT)
             self.speed_sliders.append(speed_slider)
 
+        self.task_label = tk.Label(self.root, text='''Задание: Задачу о курильщиках решить с помощью алгоритма Питерсона.''')
+        self.task_label.pack()
+
         self.initialize_smoker_indicators()
 
     def initialize_smoker_indicators(self):
