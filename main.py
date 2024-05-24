@@ -7,6 +7,7 @@ import random
 class SmokerProblem:
     def __init__(self):
         self.smoking_index = [False, False, False]
+        self.want_to_smoke_index = [False, False, False]
         self.root = tk.Tk()
         self.root.title("Демонстрация проблемы курильщиков")
 
@@ -99,7 +100,8 @@ class SmokerProblem:
 
             # Уведомление курильщиков
             for lock in self.smoker_lock:
-                lock.release()
+                if lock.locked():
+                    lock.release()
 
             time.sleep(self.agent_speed_slider.get())  # Время ожидания перед следующей выкладкой ингредиентов
 
@@ -108,7 +110,12 @@ class SmokerProblem:
             self.smoker_lock[index].acquire()
             if self.exit_flag:
                 break
-            if len(self.table_ingredients) == 2:
+            if not self.want_to_smoke_index[index]:
+                time.sleep(self.speed_sliders[index].get())  # Время ожидания перед тем как захочет курить
+                self.want_to_smoke_index[index] = True
+                self.update_indicators()
+
+            if len(self.table_ingredients) == 2 and self.want_to_smoke_index[index]:
                 missing_ingredient = list(set(self.ingredients) - set(self.table_ingredients))[0]
 
                 if self.ingredients[index] == missing_ingredient:
@@ -118,21 +125,23 @@ class SmokerProblem:
                     # Обновление индикаторов курения
                     self.update_indicators()
 
-                    time.sleep(self.speed_sliders[index].get())  # Время на курение
+                    time.sleep(1)  # Время на курение
 
                     # Сброс индикатора курения и уведомление агента
                     self.smoking_index[index] = False
                     self.update_indicators()
                     self.agent_lock.release()
-                else:
-                    self.smoker_lock[index].release()
-
+                    self.want_to_smoke_index[index] = False
+            else:
+                self.smoker_lock[index].release()
             self.update_indicators()
 
     def update_indicators(self):
         for i in range(3):
             if self.smoking_index[i]:
                 self.indicators[i][3].config(bg="green")
+            elif self.want_to_smoke_index[i]:
+                self.indicators[i][3].config(bg="yellow")
             else:
                 self.indicators[i][3].config(bg="red")
         for i in range(3):
