@@ -1,5 +1,6 @@
 import tkinter as tk
-from threading import Thread, Lock
+from datetime import datetime, timedelta
+from threading import Thread
 import time
 import random
 
@@ -15,12 +16,10 @@ class SmokerProblem:
         self.table_ingredients = []
         self.smokers = ["Курильщик с табаком", "Курильщик с бумагой", "Курильщик со спичками"]
 
-        self.agent_lock = Lock()
-        self.smoker_lock = [Lock(), Lock(), Lock()]
+        # Использование алгоритма Петерсона
+        self.flag = [False, False, False]
+        self.turn = 0
         self.exit_flag = False
-
-        for lock in self.smoker_lock:
-            lock.acquire()
 
         self.status = tk.StringVar()
         self.status.set("Ожидание агента...")
@@ -86,9 +85,11 @@ class SmokerProblem:
 
     def agent(self):
         while not self.exit_flag:
-            self.agent_lock.acquire()
-            if self.exit_flag:
-                break
+            while any(self.flag):
+                if self.exit_flag:
+                    return
+                time.sleep(0.1)  # Ждать, пока все флаги не сброшены
+
             # Агент выкладывает два случайных ингредиента на стол
             self.table_ingredients = random.sample(self.ingredients, 2)
 
@@ -98,42 +99,43 @@ class SmokerProblem:
             self.status.set(f"Агент выложил {self.table_ingredients}")
             time.sleep(1)  # Время на выкладывание ингредиентов
 
-            # Уведомление курильщиков
-            for lock in self.smoker_lock:
-                if lock.locked():
-                    lock.release()
-
             time.sleep(self.agent_speed_slider.get())  # Время ожидания перед следующей выкладкой ингредиентов
 
     def smoker(self, index):
+        next_smoke_time = datetime.now() + timedelta(seconds=int(self.speed_sliders[index].get()))
         while not self.exit_flag:
-            self.smoker_lock[index].acquire()
-            if self.exit_flag:
-                break
+            self.turn = self.turn + 1 % 3
+            while any(self.flag[j] for j in range(3) if j != index) and self.turn == index:
+                if self.exit_flag:
+                    return
+                time.sleep(0.1)  # Ждать, пока другие курильщики не освободятся
+            self.flag[index] = True
+
             if not self.want_to_smoke_index[index]:
-                time.sleep(self.speed_sliders[index].get())  # Время ожидания перед тем как захочет курить
-                self.want_to_smoke_index[index] = True
-                self.update_indicators()
+                if datetime.now() > next_smoke_time:
+                    self.want_to_smoke_index[index] = True
+                    self.update_indicators()
+                    next_smoke_time = datetime.now() + timedelta(seconds=int(self.speed_sliders[index].get()))
 
             if len(self.table_ingredients) == 2 and self.want_to_smoke_index[index]:
                 missing_ingredient = list(set(self.ingredients) - set(self.table_ingredients))[0]
 
                 if self.ingredients[index] == missing_ingredient:
+                    self.smoking_index[index] = True
+                    time.sleep(1)  # Время на курение
                     self.status.set(f"{self.smokers[index]} курит")
                     self.table_ingredients.clear()
-                    self.smoking_index[index] = True
                     # Обновление индикаторов курения
                     self.update_indicators()
 
                     time.sleep(1)  # Время на курение
 
                     # Сброс индикатора курения и уведомление агента
-                    self.smoking_index[index] = False
                     self.update_indicators()
-                    self.agent_lock.release()
+                    self.smoking_index[index] = False
                     self.want_to_smoke_index[index] = False
-            else:
-                self.smoker_lock[index].release()
+
+            self.flag[index] = False
             self.update_indicators()
 
     def update_indicators(self):
