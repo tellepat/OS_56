@@ -8,19 +8,25 @@ from tkinter import scrolledtext, ttk
 class Monitor:
     def __init__(self):
         self.lock = threading.Condition()
-        self.buffer = []
+        self.filename = "buffer.txt"
 
     def produce(self, item):
         with self.lock:
-            self.buffer.append(item)
+            with open(self.filename, 'a') as f:
+                f.write(item)
             self.lock.notify()
 
     def consume(self):
         with self.lock:
-            while not self.buffer:
+            while True:
+                with open(self.filename, 'r') as f:
+                    data = f.read()
+                if data:
+                    item = data[0]
+                    with open(self.filename, 'w') as f:
+                        f.write(data[1:])
+                    return item
                 self.lock.wait()
-            item = self.buffer.pop(0)
-            return item
 
 def producer(monitor, text_widget, produced_str_widget, speed_var, running_event, produced_string):
     while running_event.is_set():
